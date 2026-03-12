@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -63,6 +63,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [triggering, setTriggering] = useState(null);
+  const [redditGenerated, setRedditGenerated] = useState(null);
+  const [generatingReddit, setGeneratingReddit] = useState(null);
+  const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
 
   useEffect(() => {
@@ -145,6 +148,32 @@ export default function App() {
     } finally {
       setTriggering(null);
     }
+  }
+
+  async function generateRedditPost(postType) {
+    setGeneratingReddit(postType);
+    setRedditGenerated(null);
+    try {
+      const res = await fetch('/api/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: 'reddit', postType, generateOnly: true }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRedditGenerated({ postType, ...data.generated });
+      } else {
+        alert('Generation failed: ' + (data.error || 'Unknown error'));
+      }
+    } finally {
+      setGeneratingReddit(null);
+    }
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   const gap = brandData?.results?.gap;
@@ -410,34 +439,94 @@ export default function App() {
             </div>
 
             <div>
-              <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#6B7280', letterSpacing: '0.08em', marginBottom: 14 }}>REDDIT</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#6B7280', letterSpacing: '0.08em' }}>REDDIT</div>
+                <span style={{ fontSize: 11, color: '#374151', background: '#1F2937', padding: '2px 8px', borderRadius: 99 }}>manual copy-paste</span>
+              </div>
+              <div style={{ fontSize: 12, color: '#4B5563', marginBottom: 14 }}>Generate the post → copy it → paste into Reddit yourself.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                 {REDDIT_POST_TYPES.map(pt => {
-                  const key = `reddit:${pt.id}`;
-                  const isLoading = triggering === key;
+                  const isLoading = generatingReddit === pt.id;
+                  const isActive = redditGenerated?.postType === pt.id;
                   return (
-                    <div key={pt.id} style={{ background: '#111827', border: '1px solid #1F2937', borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div key={pt.id} style={{
+                      background: '#111827', border: `1px solid ${isActive ? '#FF450040' : '#1F2937'}`,
+                      borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      transition: 'border-color 0.2s',
+                    }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 500, color: '#F9FAFB', marginBottom: 2 }}>{pt.label}</div>
                         <div style={{ fontSize: 11, color: '#6B7280' }}>{pt.desc}</div>
                       </div>
                       <button
-                        onClick={() => !brandError && triggerPost('reddit', pt.id)}
-                        disabled={!!brandError || !!triggering}
+                        onClick={() => !brandError && generateRedditPost(pt.id)}
+                        disabled={!!brandError || !!generatingReddit}
                         style={{
                           padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                          background: brandError ? '#1F2937' : '#FF4500', color: '#FFFFFF',
-                          opacity: (brandError || triggering) ? 0.5 : 1,
-                          cursor: (brandError || triggering) ? 'not-allowed' : 'pointer',
+                          background: brandError ? '#1F2937' : '#FF450020',
+                          color: brandError ? '#6B7280' : '#FF4500',
+                          border: '1px solid #FF450030',
+                          opacity: (brandError || generatingReddit) ? 0.5 : 1,
+                          cursor: (brandError || generatingReddit) ? 'not-allowed' : 'pointer',
                           display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
                         }}
                       >
-                        {isLoading ? <Spin size={12} color="#fff" /> : 'Post Now'}
+                        {isLoading ? <Spin size={12} color="#FF4500" /> : 'Generate'}
                       </button>
                     </div>
                   );
                 })}
               </div>
+
+              {/* Generated Reddit post — copy-paste area */}
+              {redditGenerated && (
+                <div style={{ background: '#111827', border: '1px solid #FF450030', borderRadius: 12, padding: '20px', animation: 'fadeUp 0.3s ease forwards' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#FF4500', letterSpacing: '0.08em' }}>READY TO POST</div>
+                    <a
+                      href="https://www.reddit.com/r/entrepreneur/submit"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 12, color: '#FF4500', textDecoration: 'none' }}
+                    >
+                      Open Reddit ↗
+                    </a>
+                  </div>
+
+                  {/* Title */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: '#4B5563', fontFamily: 'monospace', marginBottom: 6 }}>TITLE</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#F9FAFB', lineHeight: 1.5, padding: '10px 12px', background: '#0D0D0D', borderRadius: 8 }}>
+                      {redditGenerated.title}
+                    </div>
+                  </div>
+
+                  {/* Body */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: '#4B5563', fontFamily: 'monospace', marginBottom: 6 }}>BODY</div>
+                    <div style={{ fontSize: 13, color: '#9CA3AF', lineHeight: 1.8, padding: '12px', background: '#0D0D0D', borderRadius: 8, whiteSpace: 'pre-wrap', maxHeight: 240, overflowY: 'auto' }}>
+                      {redditGenerated.body}
+                    </div>
+                  </div>
+
+                  {/* Subreddit + copy button */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: 12, color: '#4B5563' }}>
+                      Post to: <span style={{ color: '#FF4500' }}>r/{redditGenerated.subreddit}</span>
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(`${redditGenerated.title}\n\n${redditGenerated.body}`)}
+                      style={{
+                        padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                        background: copied ? '#166534' : '#FF4500', color: '#FFFFFF',
+                        transition: 'background 0.2s',
+                      }}
+                    >
+                      {copied ? '✓ Copied' : 'Copy All'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
