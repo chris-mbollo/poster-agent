@@ -109,56 +109,76 @@ async function generatePost(platform, postType, brandData) {
   const brand = brandData?.results?.brand;
   const validate = brandData?.results?.validate;
   const avatar = brandData?.results?.avatar;
-  const content = brandData?.results?.content;
+  const mine = brandData?.results?.mine;
   const market = brandData?.market || 'Unknown Market';
 
-  const context = `
-BRAND GAP DATA (use these real numbers and names):
+  // ── X PROMPT ────────────────────────────────────────────────────────────────
+  const xSystemPrompt = `You are a high-converting X/Twitter content writer for Chris Mbollo (@SeyiMbollo), a solo AI agent developer based in Hong Kong who builds and sells practical AI agents to individual consumers.
+
+Chris builds AI agents that save time, automate personal workflows, solve daily frustrations, or generate income. He promotes these on X using authentic #buildinpublic energy — grounded, excited, never hype-heavy or salesy. He never uses emojis. Every post ends with "@SeyiMbollo — Chris Mbollo".
+
+Return ONLY the post text. No labels, no quotes, no explanation.`;
+
+  const xUserPrompt = `You are writing an X post for Chris about the Brand Gap Agent — an AI agent he built that finds unbranded product gaps in any market, builds a complete brand identity, and delivers everything a founder needs to launch in under 10 minutes. No agency. No research. No guessing.
+
+The benchmark: one person used this exact method (Pilates socks in fitness) and made $2.71M in 30 days.
+
+REAL DATA FROM THE LATEST RUN — use these exact numbers and names, do not invent anything:
 - Market: ${market}
-- Product: ${gap?.winnerProduct}
+- Product gap found: ${gap?.winnerProduct}
 - Sub-community: ${gap?.winnerSubCommunity}
-- Brand name: ${brand?.winner}
+- Brand name generated: ${brand?.winner}
 - Tagline: "${brand?.tagline}"
 - Gap score: ${gap?.gapScore}/10
 - Brand saturation: ${gap?.brandSaturation}
 - Market size: ${gap?.parentMarketSize}
 - Trend status: ${validate?.trendStatus}
 - Window of opportunity: ${validate?.windowOfOpportunity}
-- Tribe: ${avatar?.tribeLabel} — "${avatar?.tribalEssence}"
-- Pain point: ${avatar?.painPoint}
-- Why this gap: ${gap?.whyThisGap}
+- Gross margin potential: ${validate?.grossMarginPotential}
 - Suggested retail price: ${validate?.suggestedRetailPrice}
-- Gross margin: ${validate?.grossMarginPotential}
-- Key quote from community: "${brandData?.results?.mine?.keyQuotes?.[0]}"
-- Viral hook: ${content?.viralScripts?.[0]?.hook_0_3s}
-`;
+- Real community quote: "${mine?.keyQuotes?.[0] || ''}"
+- Tribe: ${avatar?.tribeLabel} — "${avatar?.tribalEssence}"
 
-  const postFormulas = {
-    x: {
-      benchmark: `Write a punchy X (Twitter) post under 280 characters about how a single unbranded product gap became $2.71M in 30 days. Reference the Pilates socks example. End with a hook about the Brand Sprint finding gaps in 8 minutes. Sound like a founder, not a marketer. No hashtags. No emojis unless one is truly impactful.`,
+POST TYPE: ${postType}
 
-      gap_reveal: `Write a punchy X post under 280 characters revealing that you found a brand gap in the ${market} market. Mention ${gap?.winnerSubCommunity} and ${gap?.winnerProduct}. Reference the gap score (${gap?.gapScore}/10) and saturation (${gap?.brandSaturation}). Don't pitch — let the data speak. Make the reader feel like they just missed something obvious.`,
+${postType === 'gap_reveal' ? `Show the gap the agent just found. Lead with the product and market. Make the reader feel they just saw something obvious they missed. Use the real gap score, saturation level, and window. No pitch. Let the data do the talking.` : ''}
+${postType === 'benchmark' ? `Tell the $2.71M story. Pilates socks. Same market, same spend, zero brand ownership. Connect it to what the agent just found in ${market}. Build desire without selling.` : ''}
+${postType === 'engagement' ? `Ask the reader to drop a market in the replies. Say you will tell them if there is an unbranded gap worth building. Conversational. No pitch. Make it feel like a genuine offer from a founder.` : ''}
+${postType === 'insight' ? `Teach the brand gap concept. Most founders look for products — the real move is finding tribes with no brand. Use ${gap?.winnerSubCommunity} as a subtle example. No direct sell.` : ''}
+${postType === 'social_proof' ? `You have run Brand Sprints across multiple markets. Reference ${market} as one example. Grounded, not boastful. Authentic solo builder tone.` : ''}
+${postType === 'window' ? `The gap window closes. ${validate?.windowOfOpportunity} is all there is before saturation. Make it feel like a countdown. Reference ${market} and ${gap?.winnerProduct}.` : ''}
 
-      engagement: `Write an engagement X post under 280 characters asking people to drop a market in the replies. Say you'll tell them if there's an unbranded gap worth building. Keep it conversational and direct. No hashtags.`,
+CONSTRAINTS:
+- Hard max 280 characters
+- No emojis. Ever.
+- No corporate language. No "revolutionary", "game-changing", "cutting-edge"
+- Authentic solo builder tone. Use "I" language
+- Occasional hashtags only if natural: #AIagents #buildinpublic — never forced
+- End every post with: @SeyiMbollo — Chris Mbollo
 
-      social_proof: `Write an X post under 280 characters showing social proof. Mention you've done Brand Sprints across multiple markets. Reference the ${market} gap as one example. Keep it punchy. End with DM CTA.`,
+Return ONLY the post text. Nothing else.`;
 
-      insight: `Write an insight X post under 280 characters about the brand gap concept — why most founders look for products when they should look for tribes without brands. Use ${gap?.winnerSubCommunity} as a subtle example. No direct pitch.`,
+  // ── REDDIT PROMPT ────────────────────────────────────────────────────────────
+  const redditSystemPrompt = `You are writing Reddit posts for Chris Mbollo, a solo AI agent developer. Chris shares genuine insights about finding unbranded product gaps. Never pitch or sell on Reddit — provide real value only. Return ONLY raw JSON with no markdown or backticks. Format: {"title": "...", "body": "...", "subreddit": "..."}`;
 
-      window: `Write an urgent X post under 280 characters about the window of opportunity for unbranded gaps. Reference that ${validate?.windowOfOpportunity} is all you have before saturation. Make it feel like a countdown. Mention the ${market} market.`,
-    },
-    reddit: {
-      value_post: `Write a Reddit post for r/entrepreneur that provides genuine value about finding unbranded product gaps. Use the "Pilates socks" framework — find where people spend money but no brand owns the space. Include the ${market} example of ${gap?.winnerProduct} in ${gap?.winnerSubCommunity} as a real case study. DO NOT pitch or sell. Ask a question at the end to invite discussion. Return JSON: {"title": "...", "body": "...", "subreddit": "entrepreneur"}`,
+  const redditUserPrompt = `Write a Reddit post for Chris about finding unbranded product gaps using real data.
 
-      question_post: `Write a Reddit post for r/ecommerce asking about product validation processes. Share that you've been testing a method using Reddit discussions, YouTube transcripts, and Google Trends triangulation together to find gaps. Use the ${market} example. Ask what others' validation processes look like. Sound like a real founder sharing learnings. Return JSON: {"title": "...", "body": "...", "subreddit": "ecommerce"}`,
-    }
-  };
+REAL DATA FROM THE LATEST RUN:
+- Market: ${market}
+- Product gap: ${gap?.winnerProduct}
+- Sub-community: ${gap?.winnerSubCommunity}
+- Gap score: ${gap?.gapScore}/10
+- Saturation: ${gap?.brandSaturation}
+- Market size: ${gap?.parentMarketSize}
+- Window: ${validate?.windowOfOpportunity}
 
-  const systemPrompt = platform === 'reddit'
-    ? `You are a founder who has built a brand research system. Share genuine insights about finding unbranded product gaps. Never pitch directly on Reddit — provide value first. Return ONLY raw JSON with no markdown or backticks.`
-    : `You are a founder posting on X (Twitter). Write posts that feel human, direct, and specific. Use real data when available. Sound like a founder who found something real, not a marketer selling something. Return ONLY the post text with no quotes around it.`;
+${postType === 'value_post' ? `Write a value post for r/entrepreneur. Use the "Pilates socks" framework — find where people spend money but no brand owns the space. Use the ${market} example of ${gap?.winnerProduct} in ${gap?.winnerSubCommunity} as a real case study. DO NOT pitch or sell. Teach the method genuinely. Ask a question at the end to invite discussion.` : ''}
+${postType === 'question_post' ? `Write a post for r/ecommerce sharing a product validation method using Reddit discussions, YouTube transcripts, and Google Trends together to find unbranded gaps. Use the ${market} example. Ask what others validation processes look like. Sound like a real founder sharing learnings, not promoting a tool.` : ''}
 
-  const userPrompt = `${context}\n\n${postFormulas[platform]?.[postType] || postFormulas[platform]?.benchmark || ''}`;
+Return ONLY raw JSON: {"title": "...", "body": "...", "subreddit": "..."}`;
+
+  const systemPrompt = platform === 'reddit' ? redditSystemPrompt : xSystemPrompt;
+  const userPrompt = platform === 'reddit' ? redditUserPrompt : xUserPrompt;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
