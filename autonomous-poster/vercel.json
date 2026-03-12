@@ -1,0 +1,15 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 * * * *"
+    }
+  ],
+  "functions": {
+    "api/auto-post.js": { "maxDuration": 30 },
+    "api/cron.js": { "maxDuration": 30 },
+    "api/trigger.js": { "maxDuration": 30 },
+    "api/brand-data.js": { "maxDuration": 10 },
+    "api/settings.js": { "maxDuration": 10 }
+  }
+}
