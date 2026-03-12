@@ -215,7 +215,7 @@ export default async function handler(req) {
   }
 
   try {
-    const { platform, postType, brandData } = await req.json();
+    const { platform, postType, brandData, generateOnly } = await req.json();
 
     if (!brandData) {
       return new Response(JSON.stringify({ error: 'No brand data provided' }), { status: 400 });
@@ -223,6 +223,13 @@ export default async function handler(req) {
 
     // Generate the post content
     const generated = await generatePost(platform, postType, brandData);
+
+    // If generateOnly — return without posting
+    if (generateOnly) {
+      return new Response(JSON.stringify({ success: true, generated }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // Post it
     let result = {};
