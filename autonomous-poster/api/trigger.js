@@ -6,7 +6,7 @@ export default async function handler(req) {
   }
 
   try {
-    const { platform, postType } = await req.json();
+    const { platform, postType, generateOnly } = await req.json();
     const base = `https://${process.env.VERCEL_URL}`;
 
     // Fetch latest brand data
@@ -16,6 +16,19 @@ export default async function handler(req) {
       return new Response(JSON.stringify({ error: err.error || 'No brand data', message: err.message }), { status: 400 });
     }
     const { run: brandData } = await brandDataRes.json();
+
+    // If generateOnly — just generate and return, don't post
+    if (generateOnly) {
+      const postRes = await fetch(`${base}/api/auto-post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform, postType, brandData, generateOnly: true })
+      });
+      const result = await postRes.json();
+      return new Response(JSON.stringify(result), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
 
     // Fire the post
     const postRes = await fetch(`${base}/api/auto-post`, {
